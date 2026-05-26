@@ -1,0 +1,154 @@
+// ============================================================
+// Techia ATS System — Prisma Schema
+// Migrated from Firebase Firestore collections:
+//   candidates, applications, commissions, offers
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum ApplicationStatus {
+  applied
+  interview
+  accepted
+  rejected
+}
+
+enum CommissionStatus {
+  pending
+  paid
+}
+
+enum CandidateLevel {
+  junior
+  mid
+  senior
+  lead
+}
+
+// ============================================================
+// OFFER
+// كان في Firebase كـ "offers" collection
+// يحتوي على تفاصيل العمولة والوظيفة
+// ============================================================
+
+model Offer {
+  id               String   @id @default(cuid())
+  title            String
+  company          String?
+  description      String?
+
+  // عمولة المسؤول عن التوظيف
+  commission       Float    @default(0)
+  // عدد الأيام بعد القبول قبل استحقاق العمولة
+  commissionDelay  Int      @default(0)
+
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  applications     Application[]
+  commissions      Commission[]
+
+  @@map("offers")
+}
+
+// ============================================================
+// CANDIDATE
+// كان في Firebase كـ "candidates" collection
+// المتقدم للوظيفة
+// ============================================================
+
+model Candidate {
+  id           String         @id @default(cuid())
+  name         String
+  phone        String
+  email        String?        @unique
+  level        CandidateLevel @default(junior)
+
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  // Relations
+  applications Application[]
+  commissions  Commission[]
+
+  @@map("candidates")
+}
+
+// ============================================================
+// APPLICATION
+// كان في Firebase كـ "applications" collection
+// ربط بين candidate و offer + تتبع الحالة
+// ============================================================
+
+model Application {
+  id           String            @id @default(cuid())
+
+  // Foreign keys (كانوا Strings في Firebase)
+  candidateId  String
+  offerId      String
+
+  status       ApplicationStatus @default(applied)
+
+  // مصدر التوظيف (LinkedIn, Referral, إلخ)
+  source       String?
+
+  // المسؤول عن هذا الطلب (recruiter ID مستقبلاً)
+  assignedTo   String?
+
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  // Relations
+  candidate    Candidate         @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  offer        Offer             @relation(fields: [offerId], references: [id], onDelete: Restrict)
+
+  // كل application ممكن يولّد commission واحدة فقط
+  commission   Commission?
+
+  @@map("applications")
+}
+
+// ============================================================
+// COMMISSION
+// كان في Firebase كـ "commissions" collection
+// يُنشأ تلقائياً عند تغيير status → accepted
+// ============================================================
+
+model Commission {
+  id            String           @id @default(cuid())
+
+  // Foreign keys
+  applicationId String           @unique   // unique: commission واحدة لكل application
+  offerId       String
+  candidateId   String
+
+  amount        Float            @default(0)
+  status        CommissionStatus @default(pending)
+
+  // تاريخ الاستحقاق = earnedAt + commissionDelay أيام
+  earnedAt      DateTime         @default(now())
+  dueDate       DateTime
+
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  // Relations
+  application   Application      @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  offer         Offer            @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  candidate     Candidate        @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+
+  @@map("commissions")
+}
