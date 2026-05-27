@@ -1,60 +1,106 @@
-import { FastifyInstance } from 'fastify';
-import { PrismaClient } from '@prisma/client';
-import { updateCommissionStatusSchema } from './commissions.schema';
+import { FastifyPluginAsync } from "fastify";
+import { CommissionStatus } from "@prisma/client";
 
-const prisma = new PrismaClient();
+// ============================================================
+// Commissions Routes
+//
+// GET   /api/commissions          → list all commissions
+// GET   /api/commissions/:id      → get single commission
+// PATCH /api/commissions/:id/status → mark as paid
+// ============================================================
 
-export default async function commissionsRoutes(fastify: FastifyInstance) {
+const commissionRoutes: FastifyPluginAsync = async (fastify) => {
 
-    // 1. جلب جميع العمولات مع تفاصيل العرض والمرشح (GET /api/commissions)
-    fastify.get('/', async (request, reply) => {
-        try {
-            const commissions = await prisma.commission.findMany({
-                orderBy: { createdAt: 'desc' },
+    // ── GET /api/commissions ───────────────────────────────────
+    fastify.get("/", async (request, reply) => {
+        const commissions = await fastify.prisma.commission.findMany({
+            orderBy: { createdAt: "desc" },
+            include: {
+                candidate: {
+                    select: { id: true, name: true, phone: true },
+                },
+                offer: {
+                    select: { id: true, title: true, company: true },
+                },
+            },
+        });
+
+        return reply.send(commissions);
+    });
+
+    // ── GET /api/commissions/:id ───────────────────────────────
+    fastify.get<{ Params: { id: string } }>(
+        "/:id",
+        async (request, reply) => {
+            const { id } = request.params;
+
+            const commission = await fastify.prisma.commission.findUnique({
+                where: { id },
                 include: {
-                    offer: { select: { title: true, company: true } },
-                    candidate: { select: { name: true, phone: true } },
+                    candidate: true,
+                    offer: true,
+                    application: {
+                        select: { id: true, status: true, source: true },
+                    },
                 },
             });
-            return reply.code(200).send(commissions);
-        } catch (error) {
-            fastify.log.error(error);
-            return reply.code(500).send({ error: "حدث خطأ أثناء جلب العمولات" });
-        }
-    });
 
-    // 2. تحديث حالة العمولة (مثلاً لدفعها) (PATCH /api/commissions/:id/status)
-    fastify.patch<{ Params: { id: string } }>('/:id/status', async (request, reply) => {
-        try {
+            if (!commission) {
+                return reply.status(404).send({
+                    success: false,
+                    error: "Commission not found",
+                });
+            }
+
+            return reply.send(commission);
+        }
+    );
+
+    // ── PATCH /api/commissions/:id/status ─────────────────────
+    // بيحوّل الـ status من pending → paid
+    // نفس منطق: commissions.doc(id).update({ status: "paid" })
+    fastify.patch<{
+        Params: { id: string };
+        Body: { status: CommissionStatus };
+    }>(
+        "/:id/status",
+        {
+            schema: {
+                params: {
+                    type: "object",
+                    required: ["id"],
+                    properties: {
+                        id: { type: "string" },
+                    },
+                },
+                body: {
+                    type: "object",
+                    required: ["status"],
+                    properties: {
+                        status: {
+                            type: "string",
+                            enum: ["pending", "paid"],
+                        },
+                    },
+                },
+            },
+        },
+        async (request, reply) => {
             const { id } = request.params;
-            const parsedData = updateCommissionStatusSchema.parse(request.body);
+            const { status } = request.body;
 
-            // التأكد من وجود العمولة أولاً
-            const existingCommission = await prisma.commission.findUnique({
+            const commission = await fastify.prisma.commission.update({
                 where: { id },
+                data: { status },
             });
 
-            if (!existingCommission) {
-                return reply.code(404).send({ error: "العمولة غير موجودة" });
-            }
-
-            // تحديث الحالة
-            const updatedCommission = await prisma.commission.update({
-                where: { id },
-                data: { status: parsedData.status },
+            return reply.send({
+                id: commission.id,
+                status: commission.status,
+                message: `Commission marked as ${status}`,
             });
-
-            return reply.code(200).send({
-                message: "تم تحديث حالة العمولة بنجاح",
-                commission: updatedCommission,
-            });
-
-        } catch (error: any) {
-            if (error.name === 'ZodError') {
-                return reply.code(400).send({ error: "بيانات غير صالحة", details: error.errors });
-            }
-            fastify.log.error(error);
-            return reply.code(500).send({ error: "حدث خطأ في السيرفر" });
         }
-    });
-}
+    );
+};
+
+export default commissionRoutes;
