@@ -29,5 +29,5 @@ export default async function databasePlugin(fastify: FastifyInstance) {
         await instance.prisma.$disconnect();
     });
 
-    fastify.log.info("✅ Database connected");
+    fastify.log.info(" Database connected");
 }
