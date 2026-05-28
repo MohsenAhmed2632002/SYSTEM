@@ -13,6 +13,7 @@
     "@prisma/client": "^5.22.0",
     "@techia/db": "workspace:*",
     "fastify": "^5.8.5",
+    "fastify-plugin": "^5.1.0",
     "zod": "^4.4.3"
   },
   "devDependencies": {

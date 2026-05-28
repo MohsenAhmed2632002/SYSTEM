@@ -4,23 +4,33 @@ import { CommissionStatus } from "@prisma/client";
 // ============================================================
 // Commissions Routes
 //
-// GET   /api/commissions          → list all commissions
-// GET   /api/commissions/:id      → get single commission
-// PATCH /api/commissions/:id/status → mark as paid
+// GET   /api/commissions              → list all commissions
+// GET   /api/commissions/:id          → get single commission
+// PATCH /api/commissions/:id/status   → update commission status
 // ============================================================
 
 const commissionRoutes: FastifyPluginAsync = async (fastify) => {
 
-    // ── GET /api/commissions ───────────────────────────────────
+    // ─────────────────────────────────────────────
+    // GET ALL COMMISSIONS
+    // ─────────────────────────────────────────────
     fastify.get("/", async (request, reply) => {
         const commissions = await fastify.prisma.commission.findMany({
             orderBy: { createdAt: "desc" },
             include: {
                 candidate: {
-                    select: { id: true, name: true, phone: true },
+                    select: {
+                        id: true,
+                        name: true,
+                        phone: true,
+                    },
                 },
                 offer: {
-                    select: { id: true, title: true, company: true },
+                    select: {
+                        id: true,
+                        title: true,
+                        company: true,
+                    },
                 },
             },
         });
@@ -28,7 +38,9 @@ const commissionRoutes: FastifyPluginAsync = async (fastify) => {
         return reply.send(commissions);
     });
 
-    // ── GET /api/commissions/:id ───────────────────────────────
+    // ─────────────────────────────────────────────
+    // GET COMMISSION BY ID
+    // ─────────────────────────────────────────────
     fastify.get<{ Params: { id: string } }>(
         "/:id",
         async (request, reply) => {
@@ -40,7 +52,11 @@ const commissionRoutes: FastifyPluginAsync = async (fastify) => {
                     candidate: true,
                     offer: true,
                     application: {
-                        select: { id: true, status: true, source: true },
+                        select: {
+                            id: true,
+                            status: true,
+                            source: true,
+                        },
                     },
                 },
             });
@@ -56,9 +72,9 @@ const commissionRoutes: FastifyPluginAsync = async (fastify) => {
         }
     );
 
-    // ── PATCH /api/commissions/:id/status ─────────────────────
-    // بيحوّل الـ status من pending → paid
-    // نفس منطق: commissions.doc(id).update({ status: "paid" })
+    // ─────────────────────────────────────────────
+    // UPDATE COMMISSION STATUS
+    // ─────────────────────────────────────────────
     fastify.patch<{
         Params: { id: string };
         Body: { status: CommissionStatus };
@@ -89,16 +105,23 @@ const commissionRoutes: FastifyPluginAsync = async (fastify) => {
             const { id } = request.params;
             const { status } = request.body;
 
-            const commission = await fastify.prisma.commission.update({
-                where: { id },
-                data: { status },
-            });
+            try {
+                const commission = await fastify.prisma.commission.update({
+                    where: { id },
+                    data: { status },
+                });
 
-            return reply.send({
-                id: commission.id,
-                status: commission.status,
-                message: `Commission marked as ${status}`,
-            });
+                return reply.send({
+                    id: commission.id,
+                    status: commission.status,
+                    message: `Commission marked as ${status}`,
+                });
+            } catch (error) {
+                return reply.status(404).send({
+                    success: false,
+                    error: "Commission not found or update failed",
+                });
+            }
         }
     );
 };
