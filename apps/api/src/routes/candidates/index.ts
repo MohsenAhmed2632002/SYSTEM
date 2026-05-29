@@ -1,36 +1,30 @@
 import { FastifyPluginAsync } from "fastify";
-import { CandidateLevel } from "@prisma/client";
+import type {
+    CreateCandidateDto,
+    CreateCandidateResponse,
+    Candidate,
+} from "@techia/types";
 
 // ============================================================
 // Candidates Routes
-// محوّلة من: server/controllers/candidateController.js
 //
-// GET  /api/candidates       → getCandidates
-// POST /api/candidates       → createCandidate
+// GET  /api/candidates  → list all candidates
+// POST /api/candidates  → create candidate
 // ============================================================
 
 const candidateRoutes: FastifyPluginAsync = async (fastify) => {
 
-    // ── GET /api/candidates ────────────────────────────────────
-    // كان: db.collection("candidates").get()
-    fastify.get("/", async (request, reply) => {
-        const candidates = await fastify.prisma.candidate.findMany({
+    // ── GET /api/candidates ──────────────────────────────────
+    fastify.get("/", async (_request, reply) => {
+        const candidates: Candidate[] = await fastify.prisma.candidate.findMany({
             orderBy: { createdAt: "desc" },
         });
 
         return reply.send(candidates);
     });
 
-    // ── POST /api/candidates ───────────────────────────────────
-    // كان: db.collection("candidates").add({ name, phone, level })
-    fastify.post<{
-        Body: {
-            name: string;
-            phone: string;
-            email?: string;
-            level?: CandidateLevel;
-        };
-    }>(
+    // ── POST /api/candidates ─────────────────────────────────
+    fastify.post<{ Body: CreateCandidateDto }>(
         "/",
         {
             schema: {
@@ -61,10 +55,12 @@ const candidateRoutes: FastifyPluginAsync = async (fastify) => {
                 },
             });
 
-            return reply.status(201).send({
+            const response: CreateCandidateResponse = {
                 id: candidate.id,
                 message: "Candidate created",
-            });
+            };
+
+            return reply.status(201).send(response);
         }
     );
 };
