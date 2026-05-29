@@ -7,9 +7,9 @@
     "declarationMap": true,
     "lib": ["ES2022"],
     "target": "ES2022",
-    "module": "commonjs",
+    "module": "node16",
     "skipLibCheck": true,
-    "moduleResolution": "bundler",
+    "moduleResolution": "node16",
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
     "paths": {
       "@techia/*": ["../../packages/*/dist/index.d.ts"]

@@ -1,22 +1,42 @@
+// apps/api/src/plugins/cors.ts
 import { FastifyInstance } from "fastify";
 
-// ============================================================
-// CORS Plugin
-// مكتوب يدوياً بدون @fastify/cors
-// نفس إعدادات الـ Express القديم: app.use(cors())
-// ============================================================
-
 export default async function corsPlugin(fastify: FastifyInstance) {
-    const origin = process.env.CORS_ORIGIN || "*";
+    // دعم origin واحد أو قائمة مفصولة بفاصلة
+    const rawOrigins = process.env.CORS_ORIGINS
+        ?? process.env.CORS_ORIGIN
+        ?? "http://localhost:3000";
+
+    const allowedOrigins = rawOrigins
+        .split(",")
+        .map((o) => o.trim())
+        .filter(Boolean);
 
     fastify.addHook("onRequest", async (request, reply) => {
-        reply.header("Access-Control-Allow-Origin", origin);
-        reply.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,PATCH,OPTIONS");
-        reply.header("Access-Control-Allow-Headers", "Content-Type,Authorization");
+        const requestOrigin = request.headers.origin;
 
-        // Preflight
+        // السماح لـ Flutter mobile (مفيش origin header)
+        if (!requestOrigin) {
+            reply.header("Access-Control-Allow-Origin", "*");
+        } else if (
+            allowedOrigins.includes("*") ||
+            allowedOrigins.includes(requestOrigin)
+        ) {
+            reply.header("Access-Control-Allow-Origin", requestOrigin);
+        }
+
+        reply.header(
+            "Access-Control-Allow-Methods",
+            "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+        );
+        reply.header(
+            "Access-Control-Allow-Headers",
+            "Content-Type,Authorization"
+        );
+        reply.header("Access-Control-Allow-Credentials", "true");
+
         if (request.method === "OPTIONS") {
-            reply.status(204).send();
+            return reply.status(204).send();
         }
     });
 }
