@@ -25,5 +25,13 @@
       "outputs": []
     }
   },
-  "ui": "stream"
+  "ui": "stream",
+
+
+  "pipeline": {
+    "mobile#dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
 }
